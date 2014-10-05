@@ -14,19 +14,13 @@ USE IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity decode is
 port(
---
--- inputs 
---
      instruction : in std_logic_vector(31 downto 0);
-     memory_data, alu_result :in std_logic_vector(31 downto 0);
-     RegWrite, MemToReg, reset : in std_logic;
+     memory_data, alu_result, multiHi, multiLo :in std_logic_vector(31 downto 0);
+     RegWrite, MemToReg, reset, multi  : in std_logic;
      wreg_address : in std_logic_vector(4 downto 0);
---
--- outputs
---
+     wreg_rd, wreg_rt: out std_logic_vector(4 downto 0);
      register_rs, register_rt :out std_logic_vector(31 downto 0);
-     Sign_extend :out std_logic_vector(31 downto 0);
-     wreg_rd, wreg_rt : out std_logic_vector (4 downto 0));
+     Sign_extend :out std_logic_vector(31 downto 0));
 end decode;
 
 
@@ -35,15 +29,15 @@ TYPE register_file IS ARRAY ( 0 TO 31 ) OF STD_LOGIC_VECTOR( 31 DOWNTO 0 );
 
 	SIGNAL register_array: register_file := (
       X"00000000",
-      X"11111111",
-      X"22222222",
-      X"33333333",
+      X"00000001",
+      X"ffffffff",
+      X"0000007B",
       X"44444444",
       X"55555555",
       X"66666666",
       X"77777777",
       X"0000000A",
-      X"1111111A",
+      X"00000000",
       X"2222222A",
       X"3333333A",
       X"4444444A",
@@ -97,9 +91,15 @@ TYPE register_file IS ARRAY ( 0 TO 31 ) OF STD_LOGIC_VECTOR( 31 DOWNTO 0 );
 	-- Register write operation
 		
 		register_array( CONV_INTEGER(wreg_address)) <= write_data
-		                  when RegWrite = '1' else
+		                  when (RegWrite = '1')AND (multi = '0') else
 		                      register_array(conv_integer(wreg_address));
-	
+  	 register_array(31)<=multiHi
+	 when multi = '1' else
+	   register_array(31);	
+	  
+  	 register_array(30)<=multiLo
+  	 when multi = '1' else
+	   register_array(30);
 	-- move possible write destinations to execute stage                   
 		wreg_rd <= instruction(15 downto 11);
       wreg_rt <= instruction(20 downto 16);

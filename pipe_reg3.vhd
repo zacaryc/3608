@@ -2,15 +2,17 @@ Library IEEE;
 use IEEE.std_logic_1164.all;
 
 entity pipe_reg3 is
-port (ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_branch, ex_zero: in std_logic;
-      ex_alu_result, ex_register_rt, ex_branch_PC : in std_logic_vector(31 downto 0);
-      ex_wreg_addr :in std_logic_vector(4 downto 0);
+port (ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_branch, ex_zero, ex_multi: in std_logic;
+      ex_alu_result, ex_register_rt, ex_branch_PC, ex_multiHi,
+	ex_multiLo: in std_logic_vector(31 downto 0);
+      ex_wreg_addr :std_logic_vector(4 downto 0);
       clk, reset : in std_logic;
 
-      mem_MemToReg, mem_RegWrite, mem_MemWrite, mem_MemRead, mem_branch, mem_zero: out std_logic;
-      mem_alu_result, mem_register_rt, mem_branch_PC : out std_logic_vector(31 downto 0);
-      mem_wreg_addr :out std_logic_vector(4 downto 0));
-end pipe_reg3;
+      mem_MemToReg, mem_RegWrite, mem_MemWrite, mem_MemRead, mem_branch, mem_zero, mem_multi: out std_logic;
+      mem_alu_result, mem_register_rt, mem_branch_PC, mem_multiHi,
+	mem_multiLo : out std_logic_vector(31 downto 0);
+      mem_wreg_addr : out std_logic_vector(4 downto 0));
+      end pipe_reg3;
 
 
 architecture behavioral of pipe_reg3 is
@@ -29,6 +31,9 @@ if reset ='1' then
 	 mem_register_rt  <= x"00000000";
 	 mem_wreg_addr <= "00000";
 	 mem_branch_PC <= x"00000000";
+	 mem_multiHi <= x"00000000";
+	 mem_multiLo <=x"00000000";
+	 mem_multi<='0';
 
 else
 
@@ -42,6 +47,9 @@ else
 	 mem_alu_result <= ex_alu_result;
 	 mem_register_rt  <= ex_register_rt;
 	 mem_wreg_addr <= ex_wreg_addr;
+	 mem_multiHi <= ex_multiHi;
+	 mem_multiLo <= ex_multiLo;
+	 mem_multi<= ex_multi;
 end if;
 
 end process;

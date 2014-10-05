@@ -19,18 +19,44 @@ port(instruction  : out std_logic_vector(31 downto 0);
 end fetch;
 
 architecture behavioral of fetch is 
-TYPE INST_MEM IS ARRAY (0 to 7) of STD_LOGIC_VECTOR (31 DOWNTO 0);
+TYPE INST_MEM IS ARRAY (0 to 35) of STD_LOGIC_VECTOR (31 DOWNTO 0);
    SIGNAL iram : INST_MEM := (
-      X"8c070004",   --  lw $7, 4($0)
-      X"8C080008",   --  lw $8, 8($0) 
-      X"01074820",   --  add $9, $7, $8
-      X"ac09000c",   --  sw $9, 12($0)
-      X"1000FFFB",   --  beq $0, $0, -5 (branch back 5 words)
-      X"00000000",   --  nop
-      X"00000000",   --  nop
-      X"00000000"    --	 nop
- 
- 
+       X"00028020",
+X"00018820",
+X"00019820",
+X"0121502a",
+X"00000000",
+X"00000000",
+X"1141000a",
+X"00000000",
+X"00000000",
+X"00000000",
+X"0211402a",
+X"00000000",
+X"00000000",
+X"1100000b",
+X"00000000",
+X"00000000",
+X"00000000",
+X"02629820",
+X"00000000",
+X"00000000",
+X"00132020",
+X"1000ffea",
+X"00000000",
+X"00000000",
+X"00000000",
+X"02619820",
+X"00000000",
+X"00000000",
+X"02710019",
+X"00000000",
+X"00000000",
+X"001e8820",
+X"001f4820",
+X"1000ffe1",
+X"00000000",
+X"00000000"
  
                      
    );

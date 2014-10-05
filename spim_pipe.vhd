@@ -57,8 +57,8 @@ end component;
 component decode 
 port(
      instruction : in std_logic_vector(31 downto 0);
-     memory_data, alu_result :in std_logic_vector(31 downto 0);
-     RegWrite, MemToReg, reset  : in std_logic;
+     memory_data, alu_result, multiHi, multiLo :in std_logic_vector(31 downto 0);
+     RegWrite, MemToReg, reset, multi : in std_logic;
      wreg_address : in std_logic_vector(4 downto 0);
      wreg_rd, wreg_rt: out std_logic_vector(4 downto 0);
      register_rs, register_rt :out std_logic_vector(31 downto 0);
@@ -79,6 +79,9 @@ port(
      wreg_rd, wreg_rt : in std_logic_vector(4 downto 0);
      alu_result, branch_PC :out std_logic_vector(31 downto 0);
      wreg_address : out std_logic_vector(4 downto 0);
+     multiHi : out std_logic_vector(31 downto 0);
+     multiLo: out std_logic_vector(31 downto 0);
+     multi: out std_logic;
 	 zero : out std_logic);    
 end component;
 
@@ -139,13 +142,15 @@ end component;
 --
 
 component pipe_reg3
-port (ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_branch, ex_zero: in std_logic;
-      ex_alu_result, ex_register_rt, ex_branch_PC: in std_logic_vector(31 downto 0);
-      ex_wreg_addr :std_logic_vector(4 downto 0);
+port (ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_branch, ex_zero, ex_multi: in std_logic;
+      ex_alu_result, ex_register_rt, ex_branch_PC, ex_multiHi,
+	ex_multiLo: in std_logic_vector(31 downto 0);
+      ex_wreg_addr : in std_logic_vector(4 downto 0);
       clk, reset : in std_logic;
 
-      mem_MemToReg, mem_RegWrite, mem_MemWrite, mem_MemRead, mem_branch, mem_zero: out std_logic;
-      mem_alu_result, mem_register_rt, mem_branch_PC : out std_logic_vector(31 downto 0);
+      mem_MemToReg, mem_RegWrite, mem_MemWrite, mem_MemRead, mem_branch, mem_zero, mem_multi: out std_logic;
+      mem_alu_result, mem_register_rt, mem_branch_PC, mem_multiHi,
+	mem_multiLo : out std_logic_vector(31 downto 0);
       mem_wreg_addr : out std_logic_vector(4 downto 0));
 end component;
 
@@ -153,13 +158,13 @@ end component;
 -- pipeline register MEM/WB
 --
 component pipe_reg4
-port (mem_MemToReg, mem_RegWrite : in std_logic;
-      mem_memory_data, mem_alu_result: in std_logic_vector(31 downto 0);
+port (mem_MemToReg, mem_RegWrite, mem_multi : in std_logic;
+      mem_memory_data, mem_alu_result,mem_multiHi,mem_multiLo : in std_logic_vector(31 downto 0);
       mem_wreg_addr: in std_logic_vector(4 downto 0);
       clk,reset : in std_logic;
 
-      wb_MemToReg, wb_RegWrite : out std_logic;
-      wb_memory_data, wb_alu_result: out std_logic_vector(31 downto 0);
+      wb_MemToReg, wb_RegWrite, wb_multi: out std_logic;
+      wb_memory_data, wb_alu_result,wb_multiHi, wb_multiLo: out std_logic_vector(31 downto 0);
       wb_wreg_addr: out std_logic_vector(4 downto 0));
 end component;
 
@@ -187,20 +192,23 @@ signal id_wreg_rd, id_wreg_rt : std_logic_vector(4 downto 0);
 --
 -- EX
 --
-signal ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_ALUSrc, ex_zero:std_logic;
+signal ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_ALUSrc, ex_zero, ex_multi:std_logic;
 signal ex_ALUOp :std_logic_vector(1 downto 0);
 signal ex_RegDst, ex_branch: std_logic;
 signal ex_PC4, ex_branch_PC : std_logic_vector(31 downto 0);
 signal ex_register_rs, ex_register_rt, ex_sign_extend:std_logic_vector(31 downto 0);   
 signal ex_wreg_rd, ex_wreg_rt, ex_wreg_addr: std_logic_vector(4 downto 0); 
 signal ex_alu_result :std_logic_vector(31 downto 0);
+signal ex_multiHi : std_logic_vector(31 downto 0);
+signal ex_multiLo : std_logic_vector(31 downto 0);
 
 -- 
 -- MEM
 --
 
-signal mem_MemToReg, mem_RegWrite, mem_MemWrite, mem_MemRead, mem_zero : std_logic;
-signal mem_alu_result, mem_write_data, mem_memory_data, mem_Branch_PC : std_logic_vector(31 downto 0);
+signal mem_MemToReg, mem_RegWrite, mem_MemWrite, mem_MemRead, mem_zero,mem_multi : std_logic;
+signal mem_alu_result, mem_write_data, mem_memory_data, mem_Branch_PC, mem_multiHi,
+	 mem_multiLo: std_logic_vector(31 downto 0);
 signal mem_wreg_addr : std_logic_vector(4 downto 0);
 signal mem_PCSource, mem_branch : std_logic;
  
@@ -208,8 +216,8 @@ signal mem_PCSource, mem_branch : std_logic;
 -- WB
 --
 
-signal wb_MemToReg, wb_RegWrite :std_logic;
-signal wb_memory_data, wb_alu_result: std_logic_vector(31 downto 0);
+signal wb_MemToReg, wb_RegWrite, wb_multi :std_logic;
+signal wb_memory_data, wb_alu_result, wb_multiHi, wb_multiLo: std_logic_vector(31 downto 0);
 signal wb_wreg_addr: std_logic_vector(4 downto 0); 
 
 --
@@ -295,13 +303,16 @@ port map(instruction => id_instruction,
          alu_result => wb_alu_result,
          RegWrite => wb_RegWrite,
          MemToReg => wb_MemToReg,
+         multi=> wb_multi,
 	 	 reset => reset,
          register_rs => id_register_rs,
          register_rt => id_register_rt,
          Sign_extend => id_Sign_extend,
 	     wreg_address => wb_wreg_addr,
 	     wreg_rd => id_wreg_rd,
-	     wreg_rt => id_wreg_rt);
+	     wreg_rt => id_wreg_rt,
+	     multiLo => wb_multiLo,
+	     multiHi => wb_multiHi);
 
 id_ex: pipe_reg2 -- instantiate the pipeline register ID/EX
 port map(clk => clock,
@@ -327,7 +338,7 @@ reset => reset,
 	 ex_MemWrite => ex_MemWrite,
 	 ex_MemRead => ex_MemRead,
 	 ex_ALUSrc => ex_ALUSrc,
-	 ex_RegDst => ex_RegDst,
+	 	 ex_RegDst => ex_RegDst,
      ex_ALUOp => ex_ALUOp,
 	 ex_PC4  => ex_PC4,
 	 ex_register_rs  => ex_register_rs,
@@ -350,6 +361,9 @@ port map(PC4 => ex_PC4,
 	     wreg_rt => ex_wreg_rt,
 	     wreg_address => ex_wreg_addr,
 		 branch_pc => ex_branch_PC,
+		 multiLo => ex_multiLo,
+		 multiHi => ex_multiHi,
+		 multi=> ex_multi,
 		 zero => ex_zero);
 
 ex_mem: pipe_reg3 -- instantiate the pipeline registers EX/MEM
@@ -365,6 +379,9 @@ ex_branch_pc => ex_branch_pc,
 	 ex_register_rt  => ex_register_rt,
 	 ex_wreg_addr => ex_wreg_addr,
 	 ex_zero => ex_zero,
+	 ex_multiHi => ex_multiHi,
+	 ex_multiLo =>ex_multiLo,
+	 ex_multi=>ex_multi,
 
 	 mem_branch_pc => mem_branch_pc,
 	 mem_branch => mem_branch,
@@ -375,7 +392,10 @@ ex_branch_pc => ex_branch_pc,
 	 mem_alu_result  => mem_alu_result,
 	 mem_register_rt => mem_write_data,
 	 mem_wreg_addr => mem_wreg_addr,
-	 mem_zero => mem_zero);		 
+	 mem_zero => mem_zero,
+	 mem_multiHi => mem_multiHi,
+	 mem_multi=>mem_multi,
+	 mem_multiLo =>mem_multiLo);		 
 	 
 	 -- generate the branch condition for fetch
 		 
@@ -398,12 +418,18 @@ port map(clk => clock,
 	 mem_memory_data => mem_memory_data,
 	 mem_alu_result => mem_alu_result,
  	 mem_wreg_addr => mem_wreg_addr,
+ 	 mem_multi=>mem_multi,
+  mem_multiLo=>mem_multiLo,
+  mem_multiHi=>mem_multiHi,
 
+wb_multi=>wb_multi,
 	 wb_MemToReg  => wb_MemToReg,
 	 wb_RegWrite => wb_RegWrite,
 	 wb_memory_data  => wb_memory_data,
 	 wb_alu_result => wb_alu_result,
- 	 wb_wreg_addr => wb_wreg_addr);
+ 	 wb_wreg_addr => wb_wreg_addr,
+ 	 wb_multiHi => wb_multiHi,
+	 wb_multiLo =>wb_multiLo);
  
 end structural;
 
