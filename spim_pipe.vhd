@@ -71,18 +71,26 @@ end component;
 
 component execute
 port(
+
+	-- Inputs
+	forwardA, forwardB: in std_logic_vector(1 downto 0); -- Added in mux values for forwarding
      PC4 : in std_logic_vector(31 downto 0);
      register_rs, register_rt :in std_logic_vector(31 downto 0);
      Sign_extend:in std_logic_vector(31 downto 0);
      ALUOp: in std_logic_vector(1 downto 0);
      ALUSrc, RegDst : in std_logic;
      wreg_rd, wreg_rt : in std_logic_vector(4 downto 0);
+	 mem_write_data, wb_write_data: in std_logic_vector( 31 downto 0 );
+	 
+	 -- Outputs
      alu_result, branch_PC :out std_logic_vector(31 downto 0);
      wreg_address : out std_logic_vector(4 downto 0);
      multiHi : out std_logic_vector(31 downto 0);
      multiLo: out std_logic_vector(31 downto 0);
      multi: out std_logic;
-	 zero : out std_logic);    
+	 zero : out std_logic;
+	 ex_mem_register_rt: out std_logic_vector( 31 downto 0 )
+	 );    
 end component;
 
 --
@@ -115,7 +123,7 @@ port (if_PC4 : in std_logic_vector(31 downto 0);
 	clk, reset : in std_logic;
 	id_PC4 : out std_logic_vector(31 downto 0);
 	id_instruction: out std_logic_vector( 31 downto 0));
-
+	
 end component;
 
 --
@@ -128,13 +136,16 @@ port (id_MemToReg, id_RegWrite, id_MemWrite, id_MemRead: in std_logic;
       id_PC4: in std_logic_vector(31 downto 0);
       id_register_rs, id_register_rt, id_sign_extend: in std_logic_vector(31 downto 0); 
       id_wreg_rd, id_wreg_rt : in std_logic_vector(4 downto 0);
+	  id_srcreg: in std_logic_vector(4 downto 0); -- Enable source register to be read passed to forward function
 
       ex_MemToReg, ex_RegWrite, ex_MemWrite, ex_MemRead, ex_branch: out std_logic;
       ex_ALUSrc, ex_RegDst : out std_logic;  
       ex_ALUOp : out std_logic_vector(1 downto 0);
       ex_PC4: out  std_logic_vector(31 downto 0);
       ex_register_rs, ex_register_rt, ex_sign_extend: out std_logic_vector(31 downto 0);  
-      ex_wreg_rd, ex_wreg_rt : out std_logic_vector(4 downto 0));
+      ex_wreg_rd, ex_wreg_rt : out std_logic_vector(4 downto 0);
+	  ex_srcreg: out std_logic_vector(4 downto 0); -- Enable source register to be passed from id to ex
+	  );
 end component;
 
 --
@@ -168,6 +179,13 @@ port (mem_MemToReg, mem_RegWrite, mem_multi : in std_logic;
       wb_wreg_addr: out std_logic_vector(4 downto 0));
 end component;
 
+component forward
+port ( mem_registerRd, wb_registerRd, id_RegisterRs, id_RegisterRt: in std_logic_vector(4 downto 0);
+mem_RegWrite, wb_RegWrite : in std_logic;
+forwardA, forwardB: out std_logic_vector(1 downto 0);
+)
+end component
+
 --
 -- declare local signals to connect ports of components in each stage
 --
@@ -189,6 +207,7 @@ signal id_ALUOp : std_logic_vector(1 downto 0);
 signal id_register_rs, id_register_rt :std_logic_vector(31 downto 0);
 signal id_Sign_extend :std_logic_vector(31 downto 0);
 signal id_wreg_rd, id_wreg_rt : std_logic_vector(4 downto 0);
+signal id_srcreg: std_logic_vector(4 downto 0); -- Passing signal for 'Instruction Decode' (ID) Source register Rs
 --
 -- EX
 --
@@ -201,7 +220,9 @@ signal ex_wreg_rd, ex_wreg_rt, ex_wreg_addr: std_logic_vector(4 downto 0);
 signal ex_alu_result :std_logic_vector(31 downto 0);
 signal ex_multiHi : std_logic_vector(31 downto 0);
 signal ex_multiLo : std_logic_vector(31 downto 0);
-
+signal ex_srcreg: std_logic_vector(4 downto 0); -- Passing signal for Execute Source register Rs
+signal ex_mem_register_rt: std_logic_vector(31 downto 0);
+signal forwardA, forwardB: std_logic_vector(1 downto 0);
 -- 
 -- MEM
 --
@@ -218,7 +239,7 @@ signal mem_PCSource, mem_branch : std_logic;
 
 signal wb_MemToReg, wb_RegWrite, wb_multi :std_logic;
 signal wb_memory_data, wb_alu_result, wb_multiHi, wb_multiLo: std_logic_vector(31 downto 0);
-signal wb_wreg_addr: std_logic_vector(4 downto 0); 
+signal wb_wreg_addr, wb_write_data: std_logic_vector(4 downto 0); 
 
 --
 -- global signals
@@ -286,7 +307,8 @@ port map(clk => clock,
 
 spim_control: control -- instantiate the control component
 
-port map(opcode => id_instruction(31 downto 26),
+port map(
+		 opcode => id_instruction(31 downto 26),
          RegDst => id_RegDst,
          MemRead => id_MemRead,
          MemToReg => id_MemToReg,
@@ -294,25 +316,44 @@ port map(opcode => id_instruction(31 downto 26),
          ALUSrc => id_ALUSrc,
 		 Branch => id_Branch,
          RegWrite => id_RegWrite,
-         ALUOp => id_ALUOp);
+         ALUOp => id_ALUOp
+		);
 
+FD: forward
+port map(
+		-- ID
+		 id_RegisterRs	=>	ex_srcreg,
+		 id_RegisterRt	=>	ex_wreg_rt,
+		 -- MEM
+		 mem_RegWrite	=>	mem_RegWrite,
+		 -- WB
+		 wb_RegWrite	=>	wb_RegWrite,
+		 wb_registerRd  =>	wb_wreg_addr,
+		 -- Forward Signals
+		 forwardA		=>	forwardA,
+		 forwardB		=>	forwardB
+		);
+		 
+		 
 ID: decode  -- instantiate the decode component
 
-port map(instruction => id_instruction,
-         memory_data =>wb_memory_data,
-         alu_result => wb_alu_result,
-         RegWrite => wb_RegWrite,
-         MemToReg => wb_MemToReg,
-         multi=> wb_multi,
-	 	 reset => reset,
-         register_rs => id_register_rs,
-         register_rt => id_register_rt,
-         Sign_extend => id_Sign_extend,
-	     wreg_address => wb_wreg_addr,
-	     wreg_rd => id_wreg_rd,
-	     wreg_rt => id_wreg_rt,
-	     multiLo => wb_multiLo,
-	     multiHi => wb_multiHi);
+port map(instruction 	=>	id_instruction,
+         memory_data 	=>	wb_memory_data,
+         alu_result		=>	wb_alu_result,
+         RegWrite 		=>	wb_RegWrite,
+         MemToReg 		=> 	wb_MemToReg,
+         multi			=> 	wb_multi,
+	 	 reset 			=> 	reset,
+         register_rs 	=> 	id_register_rs,
+         register_rt 	=> 	id_register_rt,
+         Sign_extend 	=> 	id_Sign_extend,
+	     wreg_address 	=> 	wb_wreg_addr,
+	     wreg_rd		=> 	id_wreg_rd,
+	     wreg_rt 		=> 	id_wreg_rt,
+	     multiLo 		=> 	wb_multiLo, -- Added for the HILO register passing
+	     multiHi 		=> 	wb_multiHi,
+		 srcreg 		=>	id_srcreg
+		 );
 
 id_ex: pipe_reg2 -- instantiate the pipeline register ID/EX
 port map(clk => clock,
@@ -331,6 +372,7 @@ reset => reset,
 	 id_sign_extend  => id_sign_extend,
 	 id_wreg_rd  => id_wreg_rd,
 	 id_wreg_rt  => id_wreg_rt,
+	 id_srcreg	=>	id_srcreg,
      
      ex_branch => ex_branch,
 	 ex_MemToReg => ex_MemToReg,
@@ -360,7 +402,15 @@ port map(PC4 => ex_PC4,
 	     wreg_rd => ex_wreg_rd,
 	     wreg_rt => ex_wreg_rt,
 	     wreg_address => ex_wreg_addr,
+		 ex_mem_register_rt	=> ex_mem_register_rt,
+		 mem_write_data => mem_alu_result,
+		 wb_write_data	=>	wb_write_data
+		
+		-- Forward instructions
+		 forwardA => forwardA,
+		 forwardB => forwardB,
 		 branch_pc => ex_branch_PC,
+		 --HILO instruction bugegrs
 		 multiLo => ex_multiLo,
 		 multiHi => ex_multiHi,
 		 multi=> ex_multi,
@@ -379,10 +429,12 @@ ex_branch_pc => ex_branch_pc,
 	 ex_register_rt  => ex_register_rt,
 	 ex_wreg_addr => ex_wreg_addr,
 	 ex_zero => ex_zero,
-	 ex_multiHi => ex_multiHi,
-	 ex_multiLo =>ex_multiLo,
-	 ex_multi=>ex_multi,
-
+	 ex_multiHi	=>	ex_multiHi,
+	 ex_multiLo	=>	ex_multiLo,
+	 ex_multi	=>	ex_multi,
+	 ex_srcreg	=>	ex_srcreg,
+	 
+	 
 	 mem_branch_pc => mem_branch_pc,
 	 mem_branch => mem_branch,
 	 mem_MemToReg => mem_MemToReg,
@@ -395,7 +447,10 @@ ex_branch_pc => ex_branch_pc,
 	 mem_zero => mem_zero,
 	 mem_multiHi => mem_multiHi,
 	 mem_multi=>mem_multi,
-	 mem_multiLo =>mem_multiLo);		 
+	 mem_multiLo =>mem_multiLo
+	 
+
+	 );		 
 	 
 	 -- generate the branch condition for fetch
 		 
@@ -429,7 +484,14 @@ wb_multi=>wb_multi,
 	 wb_alu_result => wb_alu_result,
  	 wb_wreg_addr => wb_wreg_addr,
  	 wb_multiHi => wb_multiHi,
-	 wb_multiLo =>wb_multiLo);
+	 wb_multiLo =>wb_multiLo
+	 
+	 -- If the flag memtoReg is not set then write data out as usual
+	 -- ELSE write out the memory data
+	 wb_write_data <= 	wb_alu_result WHEN ( wb_MemToReg = '0' ) ELSE
+						wb_memory_data;
+	 
+	 );
  
 end structural;
 

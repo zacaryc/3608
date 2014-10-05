@@ -43,7 +43,7 @@ MemRead <= lw ;
 MemWrite <= sw;	   
 Branch <= beq;
 
-ALUOp(1) <=  rformat;
-ALUOp(0) <=  beq; 
+ALUOp(1 downto 0) <=  rformat & beq; -- note the use of the concatenation operator
+				     -- to form  2 bit signal
 
 end behavioral;

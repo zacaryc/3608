@@ -40,8 +40,21 @@ signal multisig: std_logic;
 SIGNAL ALU_ctl	: STD_LOGIC_VECTOR( 2 DOWNTO 0 );
 
 BEGIN
-    -- compute the two ALU inputs
-	Ainput <= register_rs;
+   	-----------------------
+	--forwarding control---
+	-----------------------
+	
+	-- Register rs
+	Ainput <=		mem_Writedata WHEN (forward_a = "10") ELSE  -- EX Hazard #1 or Hazard Case  (i.)
+					wb_Writedata WHEN (forward_b = "01") ELSE   -- Mem Hazard #2 or Hazard Case (iv.)
+					register_rs;
+					
+	-- Register rt
+	rt_sel <=		wb_Writedata WHEN (forward_a = "01") ELSE   -- Mem Hazard #1 or Hazard Case (iii.)
+					mem_Writedata WHEN (forward_b = "10") ELSE  -- EX Hazard #2 or Hazard Case (ii.)
+					register_rt;
+	
+	ex_mem_register_rt <= rt_sel;
 	
 	-- ALU input mux
 	Binput <= register_rt WHEN ( ALUSrc = '0' ) else
@@ -67,15 +80,19 @@ BEGIN
 		         
 -- implement the RegDst mux
 --
-multi<=multisig;
-multisig<='1' WHEN (ALU_ctl = "011")
-          Else '0';
-wreg_address <= wreg_rd when RegDst = '1' else wreg_rt;
+multi	 <=	multisig;
+multisig <=	'1' WHEN (ALU_ctl = "011")
+				Else '0';
+				
+wreg_address <= wreg_rd WHEN RegDst = '1' ELSE 
+				wreg_rt;
 		         			   
   ALU_result <= ALU_internal;					
-  multiHi <= multiout(63 downto 32);
-  multiLo <= multiout(31 downto 0);
-slt<=X"00000001" when(Ainput<Binput) else X"00000000";
+	multiHi <=	multiout(63 downto 32);
+	multiLo <=	multiout(31 downto 0);
+	slt		<=	X"00000001" WHEN (Ainput < Binput) ELSE 
+				X"00000000";
+	
 PROCESS ( ALU_ctl, Ainput, Binput )
 	BEGIN
 					-- Select ALU operation
@@ -88,7 +105,7 @@ PROCESS ( ALU_ctl, Ainput, Binput )
 	 	WHEN "010" 	=>	ALU_internal 	<= Ainput + Binput;
 						multiout <= X"0000000000000000";
 						
-						-- ALU performs ?
+						-- ALU performs beq/mult
  	 	WHEN "011" 	=>	ALU_internal 	<=  Ainput - Binput;
 						multiout <= Ainput*Binput;
 						
